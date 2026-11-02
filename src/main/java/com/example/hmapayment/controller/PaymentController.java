@@ -1,16 +1,21 @@
-package com.example.hotel_management_jpa.controller;
+package com.example.hmapayment.controller;
 
-import com.example.hotel_management_jpa.dto.PaymentRepository;
-import com.example.hotel_management_jpa.model.Booking;
-import com.example.hotel_management_jpa.model.Customer;
-import com.example.hotel_management_jpa.model.Payment;
+import com.example.hmapayment.client.BookingFeignClient;
+import com.example.hmapayment.client.CustomerFeignClient;
+import com.example.hmapayment.dto.AppResponse;
+import com.example.hmapayment.dto.Booking;
+import com.example.hmapayment.dto.Customer;
+import com.example.hmapayment.entity.Payment;
+import com.example.hmapayment.repository.PaymentRepository;
 import feign.FeignException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,10 +29,13 @@ public class PaymentController {
     private PaymentRepository paymentRepository;
 
     @Autowired
-    private CustomerFeignClient customerFeignClient;   // → customer-service (8082)
+    private CustomerFeignClient customerFeignClient;   // → customer-service (8088)
 
     @Autowired
-    private BookingFeignClient bookingFeignClient;     // → booking-service (8089)
+    private BookingFeignClient bookingFeignClient;     // → booking-service (9000)
+
+    @Autowired
+    StreamBridge bridge;
 
     // ======================================================================
     // 1. CREATE PAYMENT  →  Circuit Breaker
@@ -37,15 +45,21 @@ public class PaymentController {
     public ResponseEntity<?> createPayment(@RequestBody Payment payment) {
 
         System.out.println("******* createPayment is Called *******");
-
+        Booking booking;
         try {
-            customerFeignClient.getCustomerById(payment.getCustomerId());   // → 8082
-            bookingFeignClient.getBookingById(payment.getBookingId());      // → 8089
+            customerFeignClient.getCustomerById(payment.getCustomerId());   // → 8088
+            AppResponse<Booking> bookingResponse = bookingFeignClient.getAllBookingsByReferenceNumber(payment.getReferenceNumber());      // → 9000
+            booking = (Booking) bookingResponse.getData();
+
         } catch (FeignException.NotFound e) {
             return ResponseEntity.badRequest().body("Customer or booking not found");
         }
 
+        String  bookingRef= payment.getReferenceNumber();
         Payment saved = paymentRepository.save(payment);
+        System.out.println("******* createPayment save is Called *******");
+        System.out.println("******* "+bookingRef+" *******");
+        bridge.send("bookingPayment-out-0", MessageBuilder.withPayload(bookingRef).build());
         return new ResponseEntity<>(saved, HttpStatus.CREATED);
     }
 
@@ -73,8 +87,8 @@ public class PaymentController {
         Payment payment = optionalPayment.get();
 
         try {
-            Customer customer = customerFeignClient.getCustomerById(payment.getCustomerId());   // → 8082
-            Booking booking = bookingFeignClient.getBookingById(payment.getBookingId());        // → 8089
+            Customer customer = customerFeignClient.getCustomerById(payment.getCustomerId());   // → 8088
+            Booking booking = bookingFeignClient.getBookingById(payment.getBookingId());        // → 9000
             payment.setCustomer(customer);
             payment.setBooking(booking);
         } catch (FeignException.NotFound e) {
@@ -115,7 +129,7 @@ public class PaymentController {
         }
 
         try {
-            Customer customer = customerFeignClient.getCustomerById(optionalPayment.get().getCustomerId()); // → 8082
+            Customer customer = customerFeignClient.getCustomerById(optionalPayment.get().getCustomerId()); // → 8088
             return new ResponseEntity<>(customer, HttpStatus.OK);
         } catch (FeignException.NotFound e) {
             return ResponseEntity.notFound().build();

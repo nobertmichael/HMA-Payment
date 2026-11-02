@@ -1,6 +1,6 @@
-package com.example.hotel_management_jpa.dto;
+package com.example.hmapayment.repository;
 
-import com.example.hotel_management_jpa.model.Payment;
+import com.example.hmapayment.entity.Payment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

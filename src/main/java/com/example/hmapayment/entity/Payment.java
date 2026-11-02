@@ -1,5 +1,7 @@
-package com.example.hotel_management_jpa.model;
+package com.example.hmapayment.entity;
 
+import com.example.hmapayment.dto.Booking;
+import com.example.hmapayment.dto.Customer;
 import jakarta.persistence.*;
 
 @Entity

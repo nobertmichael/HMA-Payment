@@ -1,10 +1,10 @@
-package com.example.hotel_management_jpa;
+package com.example.hmapayment;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class HotelManagementJpaApplicationTests {
+class PaymentAPIApplicationTests {
 
     @Test
     void contextLoads() {
